@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:background="@drawable/boom_background_color"
+        android:orientation="vertical">
+
+    <TextView
+        android:id="@+id/dummy_notify"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical|center_horizontal"
+        android:layout_gravity="center_horizontal"
+        android:maxWidth="260dp"
+        android:background="@drawable/smartisan_boom_loop"
+        android:textColor="@color/title_text_color"
+        android:text="@string/dummy_notification"
+        android:textSize="@dimen/chip_text_size"
+        android:visibility="gone"/>
+
+    <TextView
+        android:id="@+id/dummy_bottom"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical|center_horizontal"
+        android:layout_gravity="center_horizontal"
+        android:background="@drawable/smartisan_boom_circle"
+        android:textColor="@color/title_text_color"
+        android:text="@string/app_label"
+        android:textSize="@dimen/chip_text_size" />
+
+</LinearLayout>
+

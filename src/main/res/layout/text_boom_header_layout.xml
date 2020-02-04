@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              xmlns:smcustomize="http://schemas.android.com/apk/res-auto"
+              xmlns:simple="http://schemas.android.com/apk/res-auto"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:orientation="vertical">
+
+    <com.universal.textboom.widget.CustomSettingItemSwitch
+        android:id="@+id/big_bang_switch"
+        style="@style/SettingSubItemSingleStyle"
+        simple:title="@string/app_label"
+        android:layout_marginTop="@dimen/list_transparent_header_footer"/>
+
+    <TextView
+        android:id="@+id/acc_enable_tips"
+        style="@style/SettingItemTipsStyle"/>
+
+    <com.universal.textboom.widget.AppSettingItemSwitch
+        android:id="@+id/ai_boom_switch"
+        style="@style/SettingSubItemSingleStyle"
+        smcustomize:title="@string/ai_boom"/>
+
+    <TextView
+        android:id="@+id/ai_bang_tips"
+        style="@style/SettingItemTipsStyle"/>
+
+    <!--
+    <com.universal.textboom.widget.AppSettingItemSwitch
+        android:id="@+id/ocr_switch"
+        smcustomize:title="@string/ocr_title"
+        style="@style/SettingSubItemSingleStyle"/>
+
+    <TextView
+        android:id="@+id/ocr_tips"
+        style="@style/SettingItemTipsStyle"/>
+    -->
+
+</LinearLayout>
