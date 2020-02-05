@@ -15,6 +15,8 @@ public class Constant {
     public static final String BIG_BANG_OCR = "big_bang_ocr";
 
     public static final String SEGMENT_URL = "http://bigbang.sanjiaoshou.net/http";
+    public static final String OCR_URL = "http://api.ocr.space/parse/image";//?? not work "https://api.ocr.space/parse/image";
+    public static final String OCR_KEY = "xxxxxxxxxxxxx";
 
     public static final String TEXTBOOM_PKG_NAME = "com.universal.textboom";
 

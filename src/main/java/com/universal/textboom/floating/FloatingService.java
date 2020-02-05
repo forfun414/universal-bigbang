@@ -70,14 +70,17 @@ public class FloatingService extends Service {
     private FrameLayout mFloatDecor;
     private FrameLayout mTransparentLayer;
 
-    boolean mHasDoubleClicked = false;
+    private boolean mUseTriggerHide = false;
+    private boolean mHasDoubleClicked = false;
     long lastPressTime;
+    long lastMoveTime;
     ArrayList<String> list;
     private Handler mHandler;
 
     private final IBinder mBinder = new LocalBinder();
     private Thread mScreenMonitorThread;
     private FullScreenMonitor mScreenMonitor;
+    private boolean mIsBooming = false;
 
     /**
      * Class used for the client Binder.  Because we know this service always
@@ -93,7 +96,6 @@ public class FloatingService extends Service {
     @Override
     public IBinder onBind(Intent intent) {
         LogUtils.d(TAG, "onBind");
-        mScreenMonitor.setReadyState(true);
 
         return mBinder;
     }
@@ -101,26 +103,29 @@ public class FloatingService extends Service {
     private void removeTransparentView() {
         if (mTransparentLayer != null) {
             mWindowManager.removeView(mTransparentLayer);
+            mBoomController = null;
             mTransparentLayer = null;
         }
     }
 
     private void addTransparentView() {
-        final WindowManager.LayoutParams transParams = new WindowManager.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                WindowManager.LayoutParams.TYPE_PHONE,
-                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL | WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
-                PixelFormat.TRANSLUCENT);//UNKNOWN
+        if (mTransparentLayer == null) {
+            final WindowManager.LayoutParams transParams = new WindowManager.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    WindowManager.LayoutParams.TYPE_PHONE,
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL | WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+                    PixelFormat.TRANSLUCENT);//UNKNOWN
 
-        transParams.gravity = Gravity.TOP | Gravity.LEFT;
-        transParams.x = 0;
-        transParams.y = 0;
-        LayoutInflater transInflater = (LayoutInflater) getSystemService(Context.LAYOUT_INFLATER_SERVICE);
-        mTransparentLayer = (FrameLayout) transInflater.inflate(R.layout.transparent_layer, null);
-        mWindowManager.addView(mTransparentLayer, transParams);
+            transParams.gravity = Gravity.TOP | Gravity.LEFT;
+            transParams.x = 0;
+            transParams.y = 0;
+            LayoutInflater transInflater = (LayoutInflater) getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+            mTransparentLayer = (FrameLayout) transInflater.inflate(R.layout.transparent_layer, null);
+            mWindowManager.addView(mTransparentLayer, transParams);
 
-        mBoomController = new BoomStartingController(getApplicationContext(), mTransparentLayer);
+            mBoomController = new BoomStartingController(getApplicationContext(), mTransparentLayer);
+        }
     }
 
     private void addFloatView() {
@@ -161,12 +166,12 @@ public class FloatingService extends Service {
             mFloatDecor.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View arg0) {
-                    LogUtils.d(TAG, "onClick: ");
+                    //LogUtils.d(TAG, "onClick: ");
                     //initiatePopupWindow(mFloatDecor);
                 }
             });
 
-            LogUtils.d(TAG, "addFloatView 22 " + mFloatDecor);
+            //LogUtils.d(TAG, "addFloatView 22 " + mFloatDecor);
             if (mFirstFloat) {
                 lightingCount = 0;
                 startLighteningAnimation();
@@ -176,25 +181,6 @@ public class FloatingService extends Service {
                 Message msg = mHandler.obtainMessage(MSG_FLOAT_ICON_HIDE);
                 mHandler.sendMessage(msg);
             }
-            //doesn't work, comment now
-            /*LogUtils.d(TAG, "onSystemUiVisibilityChange before " );
-            //monitor for fullscreen
-            mFloatDecor.setOnSystemUiVisibilityChangeListener(
-                    new View.OnSystemUiVisibilityChangeListener() {
-                        @Override
-                        public void onSystemUiVisibilityChange(int visibility) {
-                            LogUtils.d(TAG, "onSystemUiVisibilityChange " +  visibility);
-
-                            int diff = mLastSystemUiVis ^ visibility;
-                            mLastSystemUiVis = visibility;
-                            if ((diff & View.SYSTEM_UI_FLAG_FULLSCREEN) != 0
-                                    && (visibility & View.SYSTEM_UI_FLAG_FULLSCREEN) != 0) {
-                                dissmissFloating();
-                            }
-                        }
-                    });
-            LogUtils.d(TAG, "onSystemUiVisibilityChange after ");
-            */
         }
     }
 
@@ -237,6 +223,8 @@ public class FloatingService extends Service {
 
         private int triggerCount = 0;
         private final int triggerNumber = 5;
+        int originTransParamsX  = 0;
+        int originTransParamsY = 0;
 
         public void setReadyState(boolean ready){
             LogUtils.d(TAG, "FullScreenMonitor setReadyState " + ready);
@@ -255,16 +243,21 @@ public class FloatingService extends Service {
             boolean recordIsFullScreen = false;
             boolean isFullScreen = false;
             boolean forceHide = false;
-            WindowManager.LayoutParams transParams = (WindowManager.LayoutParams) mTransparentLayer.getLayoutParams();
+
+            if (mTransparentLayer != null) {
+                WindowManager.LayoutParams transParams = (WindowManager.LayoutParams) mTransparentLayer.getLayoutParams();
+                originTransParamsX = transParams.x;
+                originTransParamsY = transParams.y;
+            }
 
             while( !isStopped ) {
-                LogUtils.d(TAG, "FullScreenMonitor loop");
+                //LogUtils.d(TAG, "FullScreenMonitor loop");
 
                 //when mTransparentLayer are create in oncreate, view is not draw yet, so getLocationOnScreen may get 0 on the first time
                 //add a state check monitorReady here
-                if (monitorReady) {
+                if (monitorReady && !mUseTriggerHide) {
                     mTransparentLayer.getLocationOnScreen(top);
-                    LogUtils.d(TAG, " Thread pppppp: top[0] " + top[0] + " top[1]: " + top[1] + ", xx " + transParams.x + ", yy " + transParams.y);
+                    //LogUtils.d(TAG, " Thread pppppp: top[0] " + top[0] + " top[1]: " + top[1] + ", xx " + originTransParamsX + ", yy " + originTransParamsY);
 
                     //todo should check wether it's in landscape, skiip now, not big problem
                         /*int orientation = mWindowManager.getDefaultDisplay().getOrientation();
@@ -277,12 +270,12 @@ public class FloatingService extends Service {
                        */
 
 
-                    if (top[1] - transParams.y == 0) {// || top[0] - transParams.x == 0
+                    if (top[1] - originTransParamsY == 0) {// || top[0] - transParams.x == 0
                         isFullScreen = true;
                     } else {
                         isFullScreen = false;
                     }
-                    LogUtils.d(TAG, "check FullScreen = " + isFullScreen);
+                    //LogUtils.d(TAG, "check FullScreen = " + isFullScreen);
 
                     if (isFullScreen != recordIsFullScreen) {
                         triggerCount++;
@@ -293,7 +286,7 @@ public class FloatingService extends Service {
                             } else {
                                 msg = mHandler.obtainMessage(MSG_FLOAT_ICON_SHOW);
                             }
-                            LogUtils.d(TAG, "change visibility bz now FullScreen = " + isFullScreen);
+                            LogUtils.i(TAG, "change visibility bz now FullScreen = " + isFullScreen);
                             mHandler.sendMessage(msg);
 
                             recordIsFullScreen = isFullScreen;
@@ -326,11 +319,16 @@ public class FloatingService extends Service {
         //if have notificaion, clear
         NotificationManager notificationManager = (NotificationManager) getApplicationContext().getSystemService(Context.NOTIFICATION_SERVICE);
         notificationManager.cancel(ID_NOTIFICATION);
-        LogUtils.d(TAG, "oncreate");
+        //LogUtils.d(TAG, "oncreate");
 
-        addTransparentView();
+        addTransparentView();//called before addScreenMonitor to let addScreenMonitor get origin param of layout
         addScreenMonitor();
+
         addFloatView();
+
+        IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction(UPDATE_BOOM_STATE_ACTION);
+        registerReceiver(mBoomStateReceiver, intentFilter);
     }
 
 
@@ -338,64 +336,73 @@ public class FloatingService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         LogUtils.d(TAG, "onStartCommand");
 
+        addTransparentView();
         addFloatView();
+        mScreenMonitor.setReadyState(true);
+
         // keep it alive.
         return START_STICKY;
     }
 
-
-
-    //can't dissmiss bz if dismissed, getLocationOnScreen will not change and then will not trigger show action
-    //todo with other callback method, then don't need to set alpha
-    private void dissmissFloating() {
-        mFloatDecor.setVisibility(View.INVISIBLE);
-        if (isFullScreen() || isRuningAppInDismissList()) {
-        }
-    }
-
-    private void showFloating() {
-        mFloatDecor.setVisibility(View.VISIBLE);
-    }
-
-    private boolean isRuningAppInDismissList() {
-        boolean res = false;
-        return res;
-    }
-
-    private int mLastSystemUiVis = 0;
-
-    private boolean isFullScreen() {
-        boolean res = false;
-        return res;
-    }
-
-    private void setFloatingAlpha(float alpha) {
-        mFloatDecor.setAlpha(alpha);
-    }
-
     private BoomStartingController mBoomController;
+    //when text is null, means image boom
     public void startBoom(Context context, int x, int y, String text) {
-        //todo support image boom
+        if (mIsBooming)
+            return;
+
         mBoomController.startBoom(x, y, text);
+    }
+
+    private static String UPDATE_BOOM_STATE_ACTION = "update_boom_state_action";
+    private static String IS_BOOMING_EXTRA = "is_booming";
+    private BroadcastReceiver mBoomStateReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            String action = intent.getAction();
+            //LogUtils.d(TAG, "mUnBindReceiver: " + action);
+            if (action.equals(UPDATE_BOOM_STATE_ACTION)) {
+                boolean new_booming = intent.getBooleanExtra(IS_BOOMING_EXTRA, false);
+                LogUtils.i(TAG, "updateBoomingState old " + mIsBooming + " to new: " + new_booming);
+                mIsBooming = new_booming;
+
+                if (mFloatDecor == null) {
+                    //skip when already hide
+                    return;
+                }
+
+                if (mIsBooming) {
+                    //transparent float icon
+                    mFloatDecor.setVisibility(View.INVISIBLE);
+                } else {
+                    mFloatDecor.setVisibility(View.VISIBLE);
+                }
+            }
+        }
+    };
+
+    public static void sendBoomStateBroadcast(Context context, boolean booming) {
+        Intent intent = new Intent();
+        intent.setAction(UPDATE_BOOM_STATE_ACTION);
+        intent.putExtra(IS_BOOMING_EXTRA, booming);
+        context.sendBroadcast(intent);
     }
 
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
         int width = mWindowManager.getDefaultDisplay().getWidth();
         int height = mWindowManager.getDefaultDisplay().getHeight();
-        LogUtils.d(TAG, "onConfigurationChanged !!!!!! " + newConfig + " neww:" + width + " newh:" + height);
+        //LogUtils.d(TAG, "onConfigurationChanged !!!!!! " + newConfig + " neww:" + width + " newh:" + height);
 
         if (width != mDisplayWidth && mTouchListener != null) {
             int newX =  mTouchListener.paramsF.y;
             int newY =  mTouchListener.paramsF.x;
-            LogUtils.d(TAG, "swap x and y new x:" + mTouchListener.paramsF.x + " y:" + mTouchListener.paramsF.y);
+            LogUtils.i(TAG, "swap x and y new x:" + mTouchListener.paramsF.x + " y:" + mTouchListener.paramsF.y);
 
             mDisplayWidth = width;
             mTouchListener.paramsF.x = newX;
             mTouchListener.paramsF.y = newY;
             mWindowManager.updateViewLayout(mFloatDecor, mTouchListener.paramsF);
         }
-
     }
 
     private AnimatorSet mLighteningAnimator;
@@ -430,12 +437,12 @@ public class FloatingService extends Service {
                 @Override
                 public void onAnimationStart(Animator animation) {
                     mIsCanceled = false;
-                    LogUtils.d(TAG, "mLighteningAnimator onAnimationStart ");
+                    //LogUtils.d(TAG, "mLighteningAnimator onAnimationStart ");
                 }
 
                 @Override
                 public void onAnimationEnd(Animator animation) {
-                    LogUtils.d(TAG, "mLighteningAnimator onAnimationEnd ");
+                    //LogUtils.d(TAG, "mLighteningAnimator onAnimationEnd ");
                     if (mIsCanceled) {
                         return;
                     }
@@ -471,7 +478,7 @@ public class FloatingService extends Service {
                 }
             });
         }
-        LogUtils.d(TAG, "mLighteningAnimator start ");
+        //LogUtils.d(TAG, "mLighteningAnimator start ");
         mLighteningAnimator.start();
     }
 
@@ -482,13 +489,16 @@ public class FloatingService extends Service {
         private float initialTouchX;
         private float initialTouchY;
         private int lastUpX;
+        private int moveThreshold = 10;
 
         MyTouchListener(WindowManager.LayoutParams params) {
             paramsF = params;
         }
 
+        boolean mInMoveMode = false;
         @Override
         public boolean onTouch(View v, MotionEvent event) {
+            boolean processed = false;
             switch (event.getAction()) {
                 case MotionEvent.ACTION_DOWN:
                     if (mHandler.hasMessages(MSG_FLOAT_ICON_HIDE))
@@ -501,23 +511,25 @@ public class FloatingService extends Service {
                     initialY = paramsF.y;
                     initialTouchX = event.getRawX();
                     initialTouchY = event.getRawY();
-                    LogUtils.d(TAG, "ACTION_down: " + event.getRawX());
+                    //LogUtils.d(TAG, "ACTION_down: " + event.getRawX());
 
                     mFloatImage.setImageResource(R.drawable.smartisan_boom_circle);
                     mFloatImage.setBackgroundResource(R.drawable.smartisan_boom_loop);
 
                     // If double click...
                     if (pressTime - lastPressTime <= 300) {
-                        LogUtils.d(TAG, "ACTION_down:  double click now:" + pressTime + " last: " + lastPressTime);
-
+                        //LogUtils.d(TAG, "ACTION_down:  double click now:" + pressTime + " last: " + lastPressTime);
+                        mUseTriggerHide = true;
                         FloatingService.this.createNotification();
                         removeFloatView();
+                        removeTransparentView();
                         mHasDoubleClicked = true;
                     } else {
                         mHasDoubleClicked = false;
                     }
 
                     lastPressTime = pressTime;
+                    mInMoveMode = false;
                     break;
 
                 case MotionEvent.ACTION_UP:
@@ -526,15 +538,10 @@ public class FloatingService extends Service {
 
                     int rawX = (int) event.getRawX();
                     lastUpX = rawX;
-                    LogUtils.d(TAG, "ACTION_UP with rawx " + rawX);
+                    //LogUtils.d(TAG, "ACTION_UP with rawx " + rawX);
 
                     //perform click to trigger accessibility and then boom
                     //mFloatDecor.performClick();
-
-                    //remove message already enquened
-                    if (mHandler.hasMessages(MSG_FLOAT_ICON_HIDE))
-                        mHandler.removeMessages(MSG_FLOAT_ICON_HIDE);
-
 
                     //double check to hide the icon incase of accessibiliby is not worked
                     Message msg = mHandler.obtainMessage(MSG_FLOAT_ICON_HIDE);
@@ -544,14 +551,30 @@ public class FloatingService extends Service {
 
                 case MotionEvent.ACTION_MOVE:
                     mHidden = false;
+                    int lastPFx = paramsF.x;
+                    int lastPFy = paramsF.y;
                     paramsF.x = initialX + (int) (event.getRawX() - initialTouchX);
                     paramsF.y = initialY + (int) (event.getRawY() - initialTouchY);
                     mWindowManager.updateViewLayout(mFloatDecor, paramsF);
-                    //LogUtils.d(TAG, "ACTION_move: ");
+
+                    long moveTime = System.currentTimeMillis();
+                    lastMoveTime = moveTime;
+                    if ((lastPFx - paramsF.x) >= moveThreshold  || (lastPFy - paramsF.y) >= moveThreshold) {
+                        mInMoveMode = true;
+                    }
+
+                    //LogUtils.d(TAG, "ACTION_move: " + event.getRawX());
 
                     break;
             }
-            return false;
+
+            if (mInMoveMode) {
+                //LogUtils.d(TAG, "moving so not send to onclick");
+                processed = true;
+            } else
+                processed = false;
+
+            return processed;//control wether a click is also triggered
         }
     }
 
@@ -584,12 +607,12 @@ public class FloatingService extends Service {
                     if (mFloatDecor != null && mHidden == false) {
                         mDisplayWidth = mWindowManager.getDefaultDisplay().getWidth();
 
-                        LogUtils.d(TAG, "handlemessage screen orientation changed " + " new" + mDisplayWidth + ",height " + mWindowManager.getDefaultDisplay().getHeight());
+                        //LogUtils.i(TAG, "handlemessage screen orientation changed " + " new" + mDisplayWidth + ",height " + mWindowManager.getDefaultDisplay().getHeight());
 
                         mHidden = true;
                         final int rawX = mTouchListener.lastUpX;
 
-                        LogUtils.d(TAG, "handlemessage and hide icon rawX: " + rawX + " mDisplayWidth " + mDisplayWidth + " iconwidth " + mTouchListener.paramsF.width);
+                        //LogUtils.d(TAG, "handlemessage and hide icon rawX: " + rawX + " mDisplayWidth " + mDisplayWidth + " iconwidth " + mTouchListener.paramsF.width);
                         ValueAnimator hidingAnm = new ValueAnimator();
                         hidingAnm.setFloatValues(0f, 1f);
                         hidingAnm.setDuration(200);
@@ -615,11 +638,11 @@ public class FloatingService extends Service {
                                 if (rawX >= mDisplayWidth / 2) {
                                     mFloatImage.setImageResource(R.drawable.float_icon_hide_right);
                                     mTouchListener.paramsF.x = mDisplayWidth - mTouchListener.paramsF.width;
-                                    LogUtils.d(TAG, "hide to right new x: " + mTouchListener.paramsF.x);
+                                    //LogUtils.d(TAG, "hide to right new x: " + mTouchListener.paramsF.x);
                                 } else {
                                     mFloatImage.setImageResource(R.drawable.float_icon_hide_left);
                                     mTouchListener.paramsF.x = 0;
-                                    LogUtils.d(TAG, "hide to left new x: " + mTouchListener.paramsF.x);
+                                    //LogUtils.d(TAG, "hide to left new x: " + mTouchListener.paramsF.x);
                                 }
                                 mFloatImage.setBackgroundResource(0);
                                 mWindowManager.updateViewLayout(mFloatDecor, mTouchListener.paramsF);
@@ -703,6 +726,7 @@ public class FloatingService extends Service {
         super.onDestroy();
         LogUtils.d(TAG, "onDestroy");
 
+        unregisterReceiver(mBoomStateReceiver);
         removeFloatView();
         removeScreenMonitor();
         removeTransparentView();

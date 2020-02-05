@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.universal.textboom"
-    android:versionCode="4"
-    android:versionName="1.4">
+    android:versionCode="11"
+    android:versionName="2.1">
 
     <uses-sdk
         android:minSdkVersion="19"
@@ -47,8 +47,8 @@
             android:theme="@style/BoomSearchActivityStyle" />
         <activity
             android:name=".TextBoomSettingsActivity"
-            android:launchMode="singleTask"
             android:screenOrientation="portrait"
+            android:launchMode="singleInstance"
             android:theme="@style/SettingTheme">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -85,6 +85,15 @@
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility" />
         </service>
+
+        <activity
+            android:name=".CropActivity"
+            android:theme="@style/SettingTheme"
+            android:exported="true"></activity>
+
+        <activity android:name=".PreOcrActivity"
+            android:theme="@style/CropStyle">
+        </activity>
 
     </application>
 

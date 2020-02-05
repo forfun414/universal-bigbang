@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <TextView
+        android:id="@+id/crop_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="6dp"
+        android:background="@drawable/crop_button_back"
+        android:layout_weight="0"
+        android:gravity="center"
+        android:text="@string/crop_title"
+        android:textSize="20sp"
+        android:textColor="@color/title_text_color" />
+
+
+    <FrameLayout
+        android:id="@+id/cropper_frame"
+        android:layout_margin="20dp"
+        android:layout_weight="1"
+        android:layout_gravity="center_horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="0dp">
+
+        <FrameLayout
+            android:id="@+id/anim_loop"
+            android:layout_gravity="center"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            >
+            <ImageView
+                android:id="@+id/loop_back"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/boom_loop"
+                >
+            </ImageView>
+            <ImageView
+                android:id="@+id/loop_rotate"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/boom_light"
+                >
+            </ImageView>
+        </FrameLayout>
+
+        <com.edmodo.cropper.CropImageView
+            xmlns:custom="http://schemas.android.com/apk/res-auto"
+            android:id="@+id/CropImageView"
+            android:layout_gravity="center_horizontal"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:adjustViewBounds="true"
+            android:scaleType="centerInside"
+            custom:fixAspectRatio="false"
+            custom:guidelines="onTouch"
+            />
+    </FrameLayout>
+
+
+    <FrameLayout
+        android:id="@+id/bottom_frame"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_weight="0"
+        android:background="@drawable/crop_button_back"
+        >
+
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/button_cancel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentLeft="true"
+                android:background="@drawable/crop_cl_btn_selector"
+                android:minWidth="100dp"
+                android:text="@string/crop_cancel"
+                android:textColor="@color/title_text_color"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/ocr_recognizing"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/ocr_recognize"
+                android:textColor="@color/title_text_color"
+                android:textSize="14sp"
+                android:layout_centerVertical="true"
+                android:layout_centerHorizontal="true" />
+
+            <Button
+                android:id="@+id/button_crop"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentRight="true"
+                android:background="@drawable/crop_btn_selector"
+                android:minWidth="100dp"
+                android:text="@string/crop_recognize"
+                android:textColor="@color/title_text_color"
+                android:textSize="14sp" />
+        </RelativeLayout>
+    </FrameLayout>
+
+</LinearLayout>

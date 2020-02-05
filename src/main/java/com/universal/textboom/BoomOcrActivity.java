@@ -3,8 +3,10 @@ package com.universal.textboom;
 import android.animation.Animator;
 import android.animation.AnimatorSet;
 import android.animation.ValueAnimator;
+import android.annotation.TargetApi;
 import android.app.Activity;
 import android.app.ActivityOptions;
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -16,6 +18,8 @@ import android.graphics.Paint;
 import android.graphics.PointF;
 import android.graphics.Rect;
 import android.Manifest;
+import android.media.projection.MediaProjectionManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
@@ -33,15 +37,27 @@ import com.intsig.csopen.sdk.CSOcrResult;
 import com.intsig.csopen.sdk.CSOpenAPI;
 import com.intsig.csopen.sdk.CSOpenApiFactory;
 import com.intsig.csopen.sdk.OCRLanguage;
+import com.squareup.okhttp.Request;
+import com.universal.textboom.network.OkHttpClientManager;
+import com.universal.textboom.screen.ScreenCaptureController;
+import com.universal.textboom.util.Constant;
 import com.universal.textboom.util.LogUtils;
 
 //import android.view.SurfaceControl;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.lang.reflect.Method;
+import java.net.URLEncoder;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
 
 /**
  * Created by jayce on 16-10-11.
@@ -49,15 +65,6 @@ import java.lang.reflect.Method;
 public class BoomOcrActivity extends Activity {
 
     private final static String TAG = "BoomOcrActivity";
-
-    private String OCR_IMAGE_PATH = null;
-    private static final String OCR_IMAGE_DIR = ".boom";
-
-    private static final String PREFS_KEY_OCR = "ocr_key";
-    private static final String PREFS_KEY_OCR_WONG = "ocr_key_wrong";
-
-    private CSOpenAPI mCSOcrOpenApi;
-
     private Toast mToastStop;
 
     private Runnable mOcrRunnable = new Runnable() {
@@ -71,30 +78,6 @@ public class BoomOcrActivity extends Activity {
 
     private static BoomOcrActivity sSelf;
 
-    /**
-     * ocr language value
-     */
-    private final static int[] LANGUAGE_VALUE = {
-            OCRLanguage.LANGUAGE_English,
-            OCRLanguage.LANGUAGE_ChsSimp,
-            OCRLanguage.LANGUAGE_ChsTrad,
-            OCRLanguage.LANGUAGE_Japan,
-            OCRLanguage.LANGUAGE_Korean,
-            OCRLanguage.LANGUAGE_France,
-            OCRLanguage.LANGUAGE_Spain,
-            OCRLanguage.LANGUAGE_Portuguese,
-            OCRLanguage.LANGUAGE_German,
-            OCRLanguage.LANGUAGE_Italy,
-            OCRLanguage.LANGUAGE_Dutch,
-            OCRLanguage.LANGUAGE_Swedish,
-            OCRLanguage.LANGUAGE_Finnish,
-            OCRLanguage.LANGUAGE_Danish,
-            OCRLanguage.LANGUAGE_Norwegian,
-            OCRLanguage.LANGUAGE_Hungarian
-    };
-
-    private static final int REQ_CODE_OCR_IMAGE = 1;
-
     private FrameLayout mLoopAnimFrame;
     private ImageView mLoopRotateImage;
     private FrameLayout mContentFrame;
@@ -102,10 +85,12 @@ public class BoomOcrActivity extends Activity {
     private AnimatorSet mLoopAnimation;
     private AnimatorSet mTouchAnimation;
     private AnimatorSet mCircleAnimation;
+
     private boolean mAnimating = false;
     private boolean mTouchAnimating = false;
     private boolean mLoopAnimating = false;
     private boolean mCircleAnimating = false;
+
     private boolean mOcrResult = false;
 
     private static final float LOOP_SCALE_FROM = 1.15f;
@@ -120,12 +105,9 @@ public class BoomOcrActivity extends Activity {
     static boolean sBoomCancel = false;
 
     private Handler mHandler;
-
-    private String mKey;
-    private SharedPreferences mPrefs;
-    private static final int[] KEY_ERROR = {4002, 4003};
     private String mPackage;
     private int[] mOffset;
+    private static int mStatusBarHeight = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -142,29 +124,21 @@ public class BoomOcrActivity extends Activity {
             finish();
             return;
         }
-        mPrefs = PreferenceManager.getDefaultSharedPreferences(this);
-        readKey();
-        mHandler = new Handler();
-        if (mCSOcrOpenApi == null) {
-            mCSOcrOpenApi = CSOpenApiFactory.createCSOpenApi(this, mKey, null);
-            if (null == mCSOcrOpenApi) {
-                LogUtils.e(TAG, "Create api failed");
-                finish();
-                return;
-            }
-            boolean scannerAvailable = mCSOcrOpenApi.isCamScannerAvailable();
-            if (!scannerAvailable) {
-                finish();
-                return;
-            }
-        }
 
-        OCR_IMAGE_PATH = Environment.getExternalStorageDirectory().getAbsolutePath() + "/" + OCR_IMAGE_DIR + "/imageboom.jpg";
+        int statusbarId = getResources().getIdentifier("status_bar_height", "dimen", "android");
+        if (statusbarId > 0) {
+            mStatusBarHeight = getResources().getDimensionPixelSize(statusbarId);
+        }
+        LogUtils.d(TAG, "statusbar height " + mStatusBarHeight);
+
+        mHandler = new Handler();
 
         setContentView(R.layout.boom_ocr_layout);
         mLoopAnimFrame = (FrameLayout) findViewById(R.id.anim_loop);
         mLoopAnimFrame.setVisibility(View.INVISIBLE);
+
         mLoopRotateImage = (ImageView) findViewById(R.id.loop_rotate);
+
         mContentFrame = (FrameLayout) findViewById(R.id.click_layout);
         mContentFrame.requestFocus();
         mContentFrame.setClickable(true);
@@ -174,8 +148,9 @@ public class BoomOcrActivity extends Activity {
                 stopOcr();
             }
         });
+
         mTouchX = getIntent().getIntExtra("boom_startx", 0);
-        mTouchY = getIntent().getIntExtra("boom_starty", 0);
+        mTouchY = getIntent().getIntExtra("boom_starty", 0) - mStatusBarHeight;//remove statusbar heithgt!
         mFullscreen = getIntent().getBooleanExtra("boom_fullscreen", false);
         mPackage = getIntent().getStringExtra("caller_pkg");
         int offx = getIntent().getIntExtra("boom_offsetx", 0);
@@ -183,12 +158,15 @@ public class BoomOcrActivity extends Activity {
         mOffset = new int[]{offx, offy};
         LogUtils.d(TAG, "touchX:" + mTouchX + ", touchY:" + mTouchY + ", fullscreen:" + mFullscreen);
 
-        prepareOcr();
 
         mLoopAnimFrame.addOnLayoutChangeListener(new View.OnLayoutChangeListener() {
             @Override
             public void onLayoutChange(View v, int left, int top, int right, int bottom, int oldLeft, int oldTop, int oldRight, int oldBottom) {
+                LogUtils.d(TAG, "onLayoutChange left: " + left + ", top:" + top + ", right:" + right + ", bottom " + bottom);
+
                 if (!mAnimating) {
+                    LogUtils.d(TAG, "onLayoutChange not mAnimating left: " + left + ", top:" + top + ", right:" + right + ", bottom " + bottom);
+
                     final int l = left;
                     final int t = top;
                     final int r = right;
@@ -204,69 +182,99 @@ public class BoomOcrActivity extends Activity {
                 }
             }
         });
-
-        mContentFrame.removeCallbacks(mOcrRunnable);
-        mContentFrame.postDelayed(mOcrRunnable, OCR_DELAY);
     }
 
     public static final long OCR_DELAY = 300;
 
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        LogUtils.d(TAG, "onActivityResult:" + requestCode);
-        if (requestCode == REQ_CODE_OCR_IMAGE) {
-            mOcrResult = true;
-            boolean result = mCSOcrOpenApi.handleOCRResult(requestCode, resultCode, data, new CSOcrOpenApiHandler() {
+    protected void getOrcResult() {
+        Map<String, String> params = new HashMap<>(2);
+        params.put("apikey", Constant.OCR_KEY);
+        params.put("isOverlayRequired", "false");
+        //params.put("url", "http://i.imgur.com/fwxooMv.png");
+        params.put("language", "chs");//Chinese(Simplified)=chs
 
-                @Override
-                public void onSuccess(CSOcrResult result) {
-                    LogUtils.d(TAG, "onSuccess result:" + result);
-                    String ocrKey = mPrefs.getString(PREFS_KEY_OCR, null);
-                    if (null == ocrKey || !ocrKey.equals(mKey)) {
-                        mPrefs.edit().putString(PREFS_KEY_OCR, mKey).commit();
-                    }
-                    String wrongKey = mPrefs.getString(PREFS_KEY_OCR_WONG, "");
-                    if (null != mKey && wrongKey.contains(mKey)) {
-                        wrongKey = wrongKey.replace(":" + mKey, "");
-                        mPrefs.edit().putString(PREFS_KEY_OCR_WONG, wrongKey).commit();
-                    }
-                    if (result != null) {
-                        String ocrtext = result.getOcrText();
-                        //LogUtils.d(TAG, "text:" + ocrtext);
-                        String decode = ocrtext;
-                        //LogUtils.d(TAG, "decode:" + decode);
-                        mOcrText = decode.trim();
-                        if (0 < mOcrText.length()) {
-                            stopTouchAnimation();
-                            stopLoopAnimation();
-                            startCircleAnimation();
-                        } else {
-                            Toast.makeText(BoomOcrActivity.this, R.string.a_msg_no_words, Toast.LENGTH_SHORT).show();
-                            stopOcr();
-                        }
-                    } else {
+        File image = new File("ss");//OCR_IMAGE_PATH
+
+        OkHttpClientManager.getInstance().postImage(Constant.OCR_URL, params,
+                new OkHttpClientManager.ResultCallback() {
+                    @Override
+                    public void onError(Request request, Exception e) {
+                        e.printStackTrace();
+                        LogUtils.d(TAG, "OkHttpClientManager onError :");
+
                         Toast.makeText(BoomOcrActivity.this, R.string.a_msg_no_words, Toast.LENGTH_SHORT).show();
                         stopOcr();
+                        return;
+                    }
+
+                    @Override
+                    public void onResponse(String response) {
+                        LogUtils.d(TAG, "OkHttpClientManager onResponse :" + response);
+                        parseOrcResult(response);
+                    }
+                }, image);
+    }
+
+    private void parseOrcResult(String response) {
+        if (response != null) {
+            LogUtils.d(TAG, "parseOrcResult get :" + response);
+            StringBuilder result = new StringBuilder();
+            boolean valid = false;
+            try {
+                JSONObject json = new JSONObject(response);
+
+                JSONArray resultsArray = json.getJSONArray("ParsedResults");
+                if (resultsArray != null) {
+                    JSONObject oneResult;
+                    for (int i = 0; i < resultsArray.length(); i++) {
+                        oneResult = (JSONObject) resultsArray.get(i);
+                        int exitCode = oneResult.getInt("FileParseExitCode");
+
+                        //result code ref: https://ocr.space/ocrapi#post
+                        if (exitCode == 1) {
+                            //if need parse textOverlay
+                            JSONObject textOverlay = oneResult.getJSONObject("TextOverlay");
+
+                            String text = oneResult.getString("ParsedText");
+                            if (text != null) {
+                                result.append(text);
+                                valid = true;
+                            }
+                        }
+
                     }
                 }
 
-                @Override
-                public void onError(int errorCode) {
-                    LogUtils.e(TAG, "onError errorCode:" + errorCode);
-                    for (int error : KEY_ERROR) {
-                        if (error == errorCode) {
-                            String wrongKey = mPrefs.getString(PREFS_KEY_OCR_WONG, "");
-                            if (null != mKey && !wrongKey.contains(mKey)) {
-                                wrongKey = wrongKey + ":" + mKey;
-                                mPrefs.edit().putString(PREFS_KEY_OCR_WONG, wrongKey).commit();
-                            }
-                            break;
-                        }
-                    }
+                //overall result code
+                int overallCode = json.getInt("OCRExitCode");
+                String msg = json.getString("ErrorMessage");
+                if ((overallCode == 1 || overallCode == 2) && valid) {
+                    LogUtils.d(TAG, "parseOrcResult :" + result);
+                    handleOcrResult(result.toString());
+                } else {
+                    LogUtils.d(TAG, "parseOrcResult error :" + msg);
+                    Toast.makeText(BoomOcrActivity.this, R.string.a_msg_no_words, Toast.LENGTH_SHORT).show();
                     stopOcr();
                 }
-            });
-            LogUtils.d(TAG, "result=" + result);
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    private void handleOcrResult(String result){
+        if (result != null) {
+            LogUtils.d(TAG, "decode:" + result);
+
+            mOcrText = result.trim();
+            if (0 < mOcrText.length()) {
+                stopTouchAnimation();
+                stopLoopAnimation();
+                startCircleAnimation();
+            } else {
+                Toast.makeText(BoomOcrActivity.this, R.string.a_msg_no_words, Toast.LENGTH_SHORT).show();
+                stopOcr();
+            }
         }
     }
 
@@ -274,12 +282,7 @@ public class BoomOcrActivity extends Activity {
 
     private void startOcr() {
         mOcrStarted = true;
-        int language = OCRLanguage.LANGUAGE_English | OCRLanguage.LANGUAGE_ChsSimp;
-
-        if (mCSOcrOpenApi == null) {
-            mCSOcrOpenApi = CSOpenApiFactory.createCSOpenApi(this, mKey, null);
-        }
-        mCSOcrOpenApi.startActivityForOCR(this, REQ_CODE_OCR_IMAGE, language, OCR_IMAGE_PATH, false, !mFullscreen);
+        getOrcResult();
         mOcrResult = false;
     }
 
@@ -554,6 +557,7 @@ public class BoomOcrActivity extends Activity {
         mTouchAnimation.setInterpolator(new CubicInInterpolator());
         mTouchAnimation.setStartDelay(TOUCH_DELAY);
         mTouchAnimation.start();
+
     }
 
     private void stopTouchAnimation() {
@@ -672,146 +676,17 @@ public class BoomOcrActivity extends Activity {
         finish();
     }
 
-    private void prepareOcr() {
-        LogUtils.e(TAG, "prepare ocr, take screenshot");
-        if (!takeScreenShot()) {
-            stopOcr();
-            return;
-        }
+    private int REQUEST_CROP_IMAGE = 3002;
+    public void onImageCropped() {
+        mOcrResult = true;
+        mContentFrame.removeCallbacks(mOcrRunnable);
+        mContentFrame.postDelayed(mOcrRunnable, OCR_DELAY);
     }
 
-
-    //todo
-    Bitmap getScreenshot(int width, int height) {
-        String path = Environment.getExternalStorageDirectory().getAbsolutePath() + "/" + OCR_IMAGE_DIR;
-        Bitmap bp = BitmapFactory.decodeFile(path);
-        return bp;
-    }
-
-
-    public static final int SCALE_SCREENSHOT = 2;
-    private boolean takeScreenShot() {
-        int w = getResources().getInteger(R.integer.screen_width);
-        int h = getResources().getInteger(R.integer.screen_height);
-        Bitmap screen = getScreenshot(w, h);
-        if (null == screen) {
-            return false;
-        }
-        Bitmap bm = adjustScreenshotFor(screen);
-        File f = new File(OCR_IMAGE_PATH);
-        try {
-            File dir = new File(Environment.getExternalStorageDirectory().getAbsolutePath() + "/" + OCR_IMAGE_DIR);
-            if (!dir.exists()) {
-                dir.mkdir();
-            }
-            if (f.exists()) {
-                f.delete();
-            }
-            f.createNewFile();
-        } catch (IOException e) {
-            bm.recycle();
-            e.printStackTrace();
-            return false;
-        }
-        FileOutputStream fOut = null;
-        try {
-            fOut = new FileOutputStream(f);
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-            bm.recycle();
-            return false;
-        }
-        bm.compress(Bitmap.CompressFormat.JPEG, 80, fOut);
-        try {
-            fOut.flush();
-            fOut.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-            return false;
-        } finally {
-            bm.recycle();
-        }
-        return true;
-    }
-
-    private void readKey() {
-        String ocrKey = mPrefs.getString(PREFS_KEY_OCR, null);
-        LogUtils.e(TAG, "mPrefs key:" + ocrKey);
-        if(null != ocrKey) {
-            mKey = ocrKey;
-        }
-        if (null == mKey) {
-            String[] keyArray = getResources().getStringArray(R.array.ocr_key);
-            String wrongKey = mPrefs.getString(PREFS_KEY_OCR_WONG, "");
-            LogUtils.e(TAG, "mPrefs wrongKey:" + wrongKey);
-            for (String key : keyArray) {
-                if (!wrongKey.contains(key)) {
-                    mKey = key;
-                    LogUtils.e(TAG, "mKey:" + mKey);
-                    break;
-                }
-            }
-            if (null == mKey) {
-                mKey = keyArray[0];
-                mPrefs.edit().putString(PREFS_KEY_OCR_WONG, "").commit();
-            }
-        }
-        if (null == mKey) {
-            LogUtils.e(TAG, "Do not have a correct ocr key string!");
-            finish();
-        }
-    }
 
     public void onConfigurationChanged(Configuration configuration) {
         super.onConfigurationChanged(configuration);
         stopOcr();
-    }
-
-    private static final String PKG_GALLERY = "com.android.gallery3d";
-    private Bitmap adjustScreenshotFor(Bitmap screenshot) {
-        int w = getResources().getInteger(R.integer.screen_width);
-        int h = getResources().getInteger(R.integer.screen_height);
-        int status_bar_height = getResources().getInteger(R.integer.status_bar_height);
-        int top = status_bar_height;
-        int bottom = 0;
-        int left = 0;
-        int right = 0;
-        if (0 == mOffset[0] && 0 == mOffset[1]) {
-            // Not in one hand or sidebar mode
-            if (PKG_GALLERY.equals(mPackage) && !mFullscreen) {
-                top = getResources().getInteger(R.integer.gallery_top);
-                bottom = getResources().getInteger(R.integer.gallery_bottom);
-            }
-        } else {
-            // Screen scale in one hand or sidebar mode
-            float scaleFactor = mOffset[1] / (float) h;
-            int sideh = mOffset[1];
-            int sidew = (int) (scaleFactor * w);
-            if (PKG_GALLERY.equals(mPackage) && !mFullscreen) {
-                int gtop = (int) (getResources().getInteger(R.integer.gallery_top) * (1 - scaleFactor));
-                int gbottom = (int) (getResources().getInteger(R.integer.gallery_bottom) * (1 - scaleFactor));
-                top = sideh + gtop;
-                bottom = gbottom;
-            } else {
-                top = sideh + (int) ((1 - scaleFactor) * status_bar_height);
-            }
-            if (0 == mOffset[0]) {
-                right = sidew;
-            } else {
-                left = sidew;
-            }
-        }
-        LogUtils.d(TAG, "top:" + top + ", bottom:" + bottom + ", left:" + left + ",right:" + right);
-        int aw = (screenshot.getWidth() - left - right) / SCALE_SCREENSHOT;
-        int ah = (screenshot.getHeight() - top - bottom) / SCALE_SCREENSHOT;
-        Bitmap bm = Bitmap.createBitmap(aw, ah, Bitmap.Config.ARGB_8888);
-        Canvas canvas = new Canvas(bm);
-        Paint p = new Paint();
-        p.setFilterBitmap(true);
-        p.setAntiAlias(true);
-        canvas.drawBitmap(screenshot, new Rect(left, top, w - right, h - bottom), new Rect(0, 0, aw, ah), p);
-        screenshot.recycle();
-        return bm;
     }
 
 }

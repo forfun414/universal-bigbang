@@ -20,14 +20,31 @@ import com.universal.textboom.floating.FloatingService;
 import com.universal.textboom.util.ActivityStarter;
 import com.universal.textboom.util.LogUtils;
 import com.universal.textboom.R;
+
+import java.util.HashSet;
 import java.util.List;
 
 public class BoomAccessibilityService extends AccessibilityService {
     private static String TAG = "BoomAccessibilityService";
-    private static Rect mBangIconBount = new Rect();
-    private static boolean foundText = false;
+    private Rect mBangIconBount = new Rect();
+    private boolean foundText = false;
+
+    private HashSet<String> mAppBlackList = new HashSet();
+    private String[] mAppBlack = {
+            "com.smartisanos.launcher",
+            "com.android.launcher3",
+            "com.android.launcher2",
+    };
+
 
     public BoomAccessibilityService() {
+        initBlackList();
+    }
+
+    void initBlackList() {
+        for (String app: mAppBlack) {
+            mAppBlackList.add(app);
+        }
     }
 
     @Override
@@ -79,7 +96,9 @@ public class BoomAccessibilityService extends AccessibilityService {
 
         @Override
         public void onServiceDisconnected(ComponentName arg0) {
+            LogUtils.d(TAG, "onServiceDisconnected");
             mBound = false;
+            mService = null;
         }
     };
 
@@ -87,6 +106,8 @@ public class BoomAccessibilityService extends AccessibilityService {
     @Override
     public boolean onUnbind(Intent intent) {
         LogUtils.d(TAG, "onunbind service, accessibility is disabled");
+        unregisterReceiver(mUnBindReceiver);
+
         if (mBound) {
             unbindService(mConnection);
             mBound = false;
@@ -111,29 +132,45 @@ public class BoomAccessibilityService extends AccessibilityService {
 
                 AccessibilityNodeInfo noteInfo = event.getSource();
                 //LogUtils.d(TAG, "clicked noteInfo " + noteInfo);
+                //skip null noteinfo
+                if (noteInfo == null)
+                    return;
 
                 String resourceName = noteInfo.getViewIdResourceName();
-                LogUtils.d(TAG, "aaagetViewIdResourceName " + resourceName);
+                //LogUtils.d(TAG, "aaagetViewIdResourceName " + resourceName);
+                boolean clickOnFloat = false;
                 //if (noteInfo.findAccessibilityNodeInfosByViewId("@id/icon"))//but no id for the icon
                 if (noteInfo.getPackageName().equals("com.universal.textboom") && noteInfo.getClassName().equals("android.widget.FrameLayout")  ) {//android.widget.ImageView
-                    LogUtils.d(TAG, "getViewIdResourceName " + noteInfo.getViewIdResourceName());
+                    //LogUtils.d(TAG, "getViewIdResourceName " + noteInfo.getViewIdResourceName());
                     noteInfo.getBoundsInScreen(mBangIconBount);
-                    LogUtils.d(TAG, "FloatingService clicked and got bangicon " + mBangIconBount);
+                    //LogUtils.d(TAG, "Float button clicked and got bangicon " + mBangIconBount);
                     int centerX = (mBangIconBount.left + mBangIconBount.right)/2;
                     int centerY = (mBangIconBount.top + mBangIconBount.bottom)/2;
                     //narrow the bounds to a very small one which is the center of thr real bounds
-                    mBangIconBount = new Rect(centerX, centerY, centerX + 1, centerY + 1);
+                    mBangIconBount.set(centerX, centerY, centerX + 1, centerY + 1);
+                    clickOnFloat = true;
+                }
+
+                //skip event not on floating button
+                if (!clickOnFloat) {
+                    LogUtils.i(TAG, "skip bz find other view " + noteInfo);
+                    return;
                 }
 
                 AccessibilityNodeInfo root = getRootInActiveWindow();
-                LogUtils.d(TAG, "findView fromroot " + root + " nodeinfo:" + noteInfo.getPackageName());
+                //LogUtils.d(TAG, "findView fromroot " + root + " nodeinfo:" + noteInfo.getPackageName());
                 findViewbyRect(root);
 
                 //no text find, toast to info user
                 if (!foundText) {
-                    LogUtils.d(TAG, "didn't find text bz not text view");
-                    Toast.makeText(BoomAccessibilityService.this, getString(R.string.a_msg_no_words), Toast.LENGTH_SHORT).show();
-                    //ActivityStarter.startDummyTextBoom(this, mBangIconBount.left, mBangIconBount.top, "");//image boom
+                      if (mAppBlackList.contains(root.getPackageName())) {
+                        LogUtils.i(TAG, "black list skip boom");
+                        return;
+                    }
+
+                    //Toast.makeText(BoomAccessibilityService.this, getString(R.string.a_msg_no_words), Toast.LENGTH_SHORT).show();
+                    mService.startBoom(this, mBangIconBount.left, mBangIconBount.top, null);
+                    //ActivityStarter.startImageBoom(this, mBangIconBount.left, mBangIconBount.top, null);
                 }
 
                 break;
@@ -198,15 +235,15 @@ public class BoomAccessibilityService extends AccessibilityService {
                         Rect current = new Rect();
                         child.getBoundsInScreen(current);
 
-                        LogUtils.d(TAG, "findViewbyRect got child " + child + " rect:" + current + ", mBang:" + mBangIconBount);
+                        //LogUtils.d(TAG, "findViewbyRect got child " + child + " rect:" + current + ", mBang:" + mBangIconBount + child.getPackageName());
                         if (current.contains(mBangIconBount)) {//intersect
                             if (child.getClassName().toString().contains("TextView")) {
                                 //LogUtils.d(TAG, "findViewbyRect got child contains " + child);
                                 //LogUtils.d(TAG, " rect " + current + " icon: " + mBangIconBount);
 
                                 String text = child.getText() != null ? child.getText().toString() : null;
-                                LogUtils.d(TAG, "findViewbyRect got target " + child);
-                                LogUtils.d(TAG, "startTextBoom " + text);
+                                //LogUtils.d(TAG, "findViewbyRect got target " + child);
+                                //LogUtils.d(TAG, "startTextBoom " + text);
 
                                 if (text != null && text.length() != 0) {
                                     foundText = true;
@@ -214,12 +251,12 @@ public class BoomAccessibilityService extends AccessibilityService {
                                     mService.startBoom(this, mBangIconBount.left, mBangIconBount.top, text);
                                 } else {
                                     //ActivityStarter.startTextBoom(this, mBangIconBount.left, mBangIconBount.top, text);
-                                    Toast.makeText(BoomAccessibilityService.this, getString(R.string.a_msg_no_words), Toast.LENGTH_SHORT).show();
+                                    //Toast.makeText(BoomAccessibilityService.this, getString(R.string.a_msg_no_words), Toast.LENGTH_SHORT).show();
                                 }
                             } else {
                                 //not textview, use ocr
                                 //Toast.makeText(BoomAccessibilityService.this, getString(R.string.boom_image_not_ready), Toast.LENGTH_SHORT).show();
-                                //ActivityStarter.startDummyTextBoom(this, mBangIconBount.left, mBangIconBount.top, ""); //image boom
+                                //ActivityStarter.startImageBoom(this, mBangIconBount.left, mBangIconBount.top, ""); //image boom
                             }
                         }
 

@@ -2,6 +2,7 @@ package com.universal.textboom;
 
 import android.Manifest;
 import android.accessibilityservice.AccessibilityServiceInfo;
+import android.annotation.TargetApi;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
@@ -14,6 +15,7 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.TypedArray;
 import android.graphics.drawable.Drawable;
+import android.media.projection.MediaProjectionManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -35,7 +37,6 @@ import android.widget.SectionIndexer;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.universal.textboom.floating.FloatingService;
 import com.universal.textboom.util.ActivityStarter;
 import com.universal.textboom.util.Constant;
 import com.universal.textboom.util.LogUtils;
@@ -128,8 +129,6 @@ public class TextBoomSettingsActivity extends Activity implements CompoundButton
 
     private final static int CATEGORY_SEARCH = 1;
     private final static int CATEGORY_DICT = 2;
-
-    private Toast mOcrSwitchToast;
 
     private StickyListHeadersListView mOptionsList;
     private CustomSettingItemSwitch mBigBangSwitch;
@@ -263,7 +262,7 @@ public class TextBoomSettingsActivity extends Activity implements CompoundButton
         accTipsView.setText(R.string.acc_enable_tips);
 
         mAiBoomSwitch = (AppSettingItemSwitch) headerView.findViewById(R.id.ai_boom_switch);
-        //mOCRSwitch = (AppSettingItemSwitch) headerView.findViewById(R.id.ocr_switch);
+        mOCRSwitch = (AppSettingItemSwitch) headerView.findViewById(R.id.ocr_switch);
 
         TextView bigBangTipsView = (TextView) headerView.findViewById(R.id.ai_bang_tips);
         CharSequence text = getString(R.string.ai_boom_tips);
@@ -286,7 +285,7 @@ public class TextBoomSettingsActivity extends Activity implements CompoundButton
         bigBangTipsView.setText(builder);
 
 
-        //TextView ocrTipsView = (TextView) headerView.findViewById(R.id.ocr_tips);
+        TextView ocrTipsView = (TextView) headerView.findViewById(R.id.ocr_tips);
         text = getString(R.string.ocr_tips);
         builder = new SpannableStringBuilder(text);
         pattern = Pattern.compile("/camscanner/");
@@ -296,7 +295,7 @@ public class TextBoomSettingsActivity extends Activity implements CompoundButton
             builder.setSpan(new ImageSpanAlignCenter(this, R.drawable.bigbang_scan),
                     matcher.start(), matcher.end(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
         }
-        //ocrTipsView.setText(builder);
+        ocrTipsView.setText(builder);
 
         mOptionsList.addHeaderView(headerView);
         mOptionsList.addFooterView(Utils.inflateListTransparentHeader(this));
@@ -328,11 +327,10 @@ public class TextBoomSettingsActivity extends Activity implements CompoundButton
         mAiBoomSwitch.setChecked(aiBoomEnabled);
         mAiBoomSwitch.setOnCheckedChangeListener(this);
 
-        //ocr 功能不可用，需要向扫描全能王申请 key
-        boolean isOCREnabled = SharedPreferencesManager.getInt(TextBoomSettingsActivity.this, Constant.BIG_BANG_OCR, 0) == 1;
-        //mOCRSwitch.setEnabled(isBangEnabled && Utils.isPackageInstalled(this, Constant.PKG_CAMSCANNER));
-        //mOCRSwitch.setChecked(isOCREnabled);
-        //mOCRSwitch.setOnCheckedChangeListener(this);
+        boolean isOCREnabled = SharedPreferencesManager.getInt(TextBoomSettingsActivity.this, Constant.BIG_BANG_OCR, 1) == 1;
+        mOCRSwitch.setEnabled(isBangEnabled);
+        mOCRSwitch.setChecked(isOCREnabled);
+        mOCRSwitch.setOnCheckedChangeListener(this);
 
         mAdapter.notifyDataSetChanged();
     }
@@ -341,11 +339,8 @@ public class TextBoomSettingsActivity extends Activity implements CompoundButton
     protected void onPause() {
         super.onPause();
         mAiBoomSwitch.setOnCheckedChangeListener(null);
-        //mOCRSwitch.setOnCheckedChangeListener(null);
+        mOCRSwitch.setOnCheckedChangeListener(null);
         unregisterReceiver(mPackageReceiver);
-        if (mOcrSwitchToast != null) {
-            mOcrSwitchToast.cancel();
-        }
     }
 
     private static final int OVERLAY_REQUEST_CODE = 1000;
@@ -367,6 +362,28 @@ public class TextBoomSettingsActivity extends Activity implements CompoundButton
 
             LogUtils.i(TAG, "onActivityResult success");
         }
+
+        LogUtils.d(TAG, "onActivityResult " + data + " resultCode " + resultCode + " requestCode " + requestCode);
+        if (requestCode == REQUEST_MEDIA_PROJECTION) {
+            if (resultCode != Activity.RESULT_OK) {
+                //didn't get allowed from screen capture
+                LogUtils.d(TAG, "mediaprojection not allowed ");
+                return;
+            } else if (data != null && resultCode != 0) {
+                //got required permission, can continue to get screen
+                LogUtils.d(TAG, "mediaprojection is allowed " + data + " resultCode " + resultCode);
+            }
+        }
+
+    }
+    private int REQUEST_MEDIA_PROJECTION = 3001;
+    private MediaProjectionManager mMediaProjectionManager;
+
+    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
+    private void startMediaIntent() {
+        LogUtils.d(TAG, "startMediaIntent ");
+        mMediaProjectionManager = (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
+        startActivityForResult(mMediaProjectionManager.createScreenCaptureIntent(), REQUEST_MEDIA_PROJECTION);
     }
 
     @Override
@@ -374,29 +391,12 @@ public class TextBoomSettingsActivity extends Activity implements CompoundButton
         if (buttonView == mAiBoomSwitch.getSwitch()) {
             SharedPreferencesManager.setInt(TextBoomSettingsActivity.this, Constant.AI_BOOM, (isChecked ? 1 : 0));
             updateViews();
-
-            //triggeer floating button.
-            /*
-            Intent intent = new Intent(this, FloatingService.class);
-            if (isChecked)
-                startService(intent);
-            else
-                stopService(intent);
-             */
-
-        } else if (false/*buttonView == mOCRSwitch.getSwitch()*/) {
+            //startMediaIntent();
+            //ActivityStarter.startImageBoom(this, 200, 200, null);
+            //startActivityForResult(new Intent(this, PreOcrActivity.class), REQUEST_MEDIA_PROJECTION);
+        } else if (buttonView == mOCRSwitch.getSwitch()) {
             SharedPreferencesManager.setInt(TextBoomSettingsActivity.this, Constant.BIG_BANG_OCR, (isChecked ? 1 : 0));
-
-            checkAndRequestPermission();
-
-            //ocr 功能不可用，代码注掉，加 toast 提示
-            if (isChecked) {
-                /*buttonView.setChecked(false);
-                if (mOcrSwitchToast != null) mOcrSwitchToast.cancel();
-                mOcrSwitchToast = Toast.makeText(this, "OCR功能不可用，需要向扫描全能王申请key。", Toast.LENGTH_LONG);
-                mOcrSwitchToast.show();
-                */
-            }
+            //checkAndRequestPermission();debug
         }
     }
 

@@ -24,7 +24,7 @@
     <string name="search_via_hidict">Dict.CN</string>
     <string name="search_via_baidupedia">Baidu Baike</string>
     <string name="thumb_trigger_area_tips">The smaller the trigger size (the size of the area of the screen to trigger Thumb Swipe), the easier it is to set off. You can adjust the trigger size to avoid setting it off accidentally.</string>
-    <string name="ocr_tips">OCR support provided by /camscanner/CamScanner.(unavailable)</string>
+    <string name="ocr_tips">OCR is provided by /camscanner/ for free</string>
     <string name="ai_boom_tips">AI Smart text support provided by /tricorn/Trio.</string>
     <string name="dlg_title_notice">Notice</string>
     <string name="install_camscanner_message">CamScanner is not installed on this system. Tap "Install" to go to the App Market to install this app and start using OCR.</string>
@@ -39,12 +39,18 @@
     <string name="thumb_trigger_area_large">Large</string>
     <string name="thumb_trigger_area_largest">Maximum</string>
     <string name="network_disconnected">No Internet Connection</string>
-
     <string name="title_button_text_back">Back</string>
     <string name="goto_browser">Open in Browser</string>
     <string name="close">Close</string>
     <string name="bang_notify_title">BigBang is hidden</string>
     <string name="bang_notify_text">Click to show floating button</string>
-    <string name="accessibility_boom_description">Enable BigBang service can help you to edit text very convenient. \n We will not collect your personal information, but only used for AI segment. \n If you do not want this, just disable AI segment, and all the things are processed on your phone.</string>
+    <string name="accessibility_boom_description">Enable BigBang service can help you to edit text very convenient. \n We will not collect your personal information, but only used for AI segment. \n If you do not want this, just disable "AI segment", and all the things are processed on your phone.</string>
     <string name="boom_image_not_ready">Current small window not support boom, please find a text</string>
+    <string name="crop_recognize">Recognize</string>
+    <string name="crop_cancel">Cancel</string>
+    <string name="msg_android_too_old">Your android version is not supported</string>
+    <string name="msg_screen_capture_error">Please allow to capture the screen, otherwise can\'t recognize text</string>
+    <string name="crop_title">Area Identify</string>
+    <string name="msg_ocr_error_network">Recognized failed because network</string>
+    <string name="ocr_not_enabled_message">OCR is not enabled, open BigBang APP to enable</string>
 </resources>

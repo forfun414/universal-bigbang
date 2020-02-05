@@ -55,7 +55,6 @@ public class BoomChipPage {
             }
             float pageX = getChipParentX();
             float pageY = getChipParentY();
-            LogUtils.d(TAG, "init Chip and do boom animation");
 
             final int animationRows = Math.min(mLayout.getRowCount(), 12);
             for (int i = 0; i < animationRows; ++i) {
@@ -202,13 +201,6 @@ public class BoomChipPage {
             }
         }
 
-        for (int i = 0; i< segment.length; i++) {
-            LogUtils.d(TAG, "firstsegment first old[" + i + "]=" + segment[i]);
-        }
-
-        for (int i = 0; i< newSeg.length; i+=2) {
-            LogUtils.d(TAG, "firstsegment segment new[" + i + "]=" + newSeg[i] + ":" + newSeg[i+1]);
-        }
 
         return mLayout.layoutWordsAfterFilter(newSeg, newText.toString(), touchedIndex - touchIndexOffset);
     }
@@ -262,7 +254,6 @@ public class BoomChipPage {
             }
             mBoomConent.addView(row);
 
-            LogUtils.d(TAG, "initChips  " + i + " row: " + row);
         }
         mBoomConent.requestLayout();
         mBoomConent.getViewTreeObserver().addOnGlobalLayoutListener(mDoBoomAnimation);

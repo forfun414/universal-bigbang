@@ -11,6 +11,7 @@ import android.view.Window;
 import android.view.WindowManager;
 import android.widget.Toast;
 
+import com.universal.textboom.floating.FloatingService;
 import com.universal.textboom.network.OkHttpClientManager;
 import com.universal.textboom.util.Constant;
 import com.universal.textboom.util.LogUtils;
@@ -105,7 +106,6 @@ public class BoomActivity extends Activity {
     private void segmentOnline() {
         final String text = getIntent().getStringExtra(Intent.EXTRA_TEXT);
         if (text != null) {
-            LogUtils.d(TAG, "text=" + text + " |size= " + text.length());
 
             boolean ocr = (getIntent().getStringExtra("boom_image") != null);
             Map<String, String> params = new HashMap<>(2);
@@ -127,19 +127,16 @@ public class BoomActivity extends Activity {
                             int code = json.getInt("code");
                             if (code != 0) {
                                 String msg = json.getString("msg");
-                                LogUtils.d(TAG, msg);
                                 Toast.makeText(BoomActivity.this, msg, Toast.LENGTH_SHORT).show();
                                 finish();
                                 return;
                             }
                             JSONArray array = json.getJSONArray("list");
-                            LogUtils.d(TAG, "boomac response :" + response);
 
                             if (array != null) {
                                 int[] result = new int[array.length()];
                                 for (int i = 0; i < array.length(); i++) {
                                     result[i] = array.getInt(i);
-                                    LogUtils.d(TAG, "list:" + result[i]);
                                 }
                                 handleSegmentResult(text, result);
                             }
@@ -154,7 +151,7 @@ public class BoomActivity extends Activity {
 
     private void handleSegmentResult(String text, int[] result) {
         if (result == null) {
-            Log.e(TAG, "Segmentation fails for text=" + text);
+            Log.e(TAG, "Segmentation fails for text");
             result = new int[2];
             result[0] = 0;
             result[1] = text.length() - 1;
@@ -162,14 +159,13 @@ public class BoomActivity extends Activity {
         int touchIndex = getIntent().getIntExtra("boom_index", -1);
         int touchedX = getIntent().getIntExtra("boom_startx", -1);
         int touchedY = getIntent().getIntExtra("boom_starty", -1);
-        LogUtils.d(TAG, "boom_index=" + touchIndex + ", touchedX=" + touchedX + " touchedY=" + touchedY);
 
         if (!mBoomChipPage.initWords(result, text, touchIndex, touchedX, touchedY)) {
             StringBuilder log = new StringBuilder();
             for (int i = 0; i < result.length; ++i) {
                 log.append(result[i] + ", ");
             }
-            Log.w(TAG, "No words left after segment, input=" + text + ", output=" + log);
+
             boolean image = (getIntent().getStringExtra("boom_image") != null);
             if (image) {
                 Toast.makeText(BoomActivity.this, R.string.a_msg_no_words, Toast.LENGTH_SHORT).show();
@@ -184,14 +180,14 @@ public class BoomActivity extends Activity {
             outState.putSerializable(SELECTED_STATE,
                     mBoomChipPage.mBoomActionHandler.mSelectedId);
         }
-        LogUtils.d(TAG, " onSaveInstanceState ");
+
         super.onSaveInstanceState(outState);
     }
 
     @Override
     protected void onRestoreInstanceState(Bundle savedInstanceState) {
         super.onRestoreInstanceState(savedInstanceState);
-        LogUtils.d(TAG, " onRestoreInstanceState ");
+
         if (mBoomChipPage != null) {
             mBoomChipPage.mSavedData = savedInstanceState.getSerializable(SELECTED_STATE);
         }

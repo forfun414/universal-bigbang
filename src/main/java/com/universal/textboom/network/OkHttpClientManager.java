@@ -3,12 +3,17 @@ package com.universal.textboom.network;
 import android.os.Handler;
 import android.os.Looper;
 
+import com.squareup.okhttp.MediaType;
+import com.squareup.okhttp.MultipartBuilder;
+import com.squareup.okhttp.RequestBody;
 import com.universal.textboom.util.LogUtils;
 import com.squareup.okhttp.Callback;
 import com.squareup.okhttp.FormEncodingBuilder;
 import com.squareup.okhttp.OkHttpClient;
 import com.squareup.okhttp.Request;
 import com.squareup.okhttp.Response;
+
+import java.io.File;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
@@ -49,7 +54,27 @@ public class OkHttpClientManager {
             }
 
             Request req = new Request.Builder().url(url).post(builder.build()).build();
-            LogUtils.d("okhttp post" + url +  " in tid: " + android.os.Process.myTid() + " req:" + req);
+            deliveryResult(callback, req);
+        }
+    }
+
+    public void postImage(String url, Map<String, String> paramsMap, ResultCallback callback, File image) {
+        if (paramsMap != null) {
+            MultipartBuilder mpBuilder = new MultipartBuilder().type(MultipartBuilder.FORM);
+
+            if (image == null)
+                return;
+
+            RequestBody imageBody = RequestBody.create(MediaType.parse("image/png"), image);
+            mpBuilder.addFormDataPart("file=", "imageboom.jpg", imageBody);
+
+            Iterator<String> keys = paramsMap.keySet().iterator();
+            while (keys.hasNext()) {
+                String key = keys.next();
+                mpBuilder.addFormDataPart(key, paramsMap.get(key));
+            }
+
+            Request req = new Request.Builder().url(url).post(mpBuilder.build()).build();
             deliveryResult(callback, req);
         }
     }

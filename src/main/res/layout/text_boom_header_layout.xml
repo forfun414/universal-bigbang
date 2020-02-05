@@ -25,7 +25,7 @@
         android:id="@+id/ai_bang_tips"
         style="@style/SettingItemTipsStyle"/>
 
-    <!--
+
     <com.universal.textboom.widget.AppSettingItemSwitch
         android:id="@+id/ocr_switch"
         smcustomize:title="@string/ocr_title"
@@ -34,6 +34,5 @@
     <TextView
         android:id="@+id/ocr_tips"
         style="@style/SettingItemTipsStyle"/>
-    -->
 
 </LinearLayout>

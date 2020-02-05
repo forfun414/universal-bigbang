@@ -5,7 +5,7 @@
     <string name="app_label">大爆炸</string>
 
     <string name="a_msg_no_words">未识别出文字</string>
-    <string name="ocr_recognize">正在识别图片中的文字\n点击屏幕任意处取消</string>
+    <string name="ocr_recognize">正在识别图片中的文字</string>
     <string name="ocr_cancel">点击屏幕任意处取消</string>
     <string name="scanner_unavailable">未安装扫描全能王</string>
     <string name="ocr_title">图像文字识别</string>
@@ -25,7 +25,7 @@
     <string name="search_via_hidict">海词词典</string>
     <string name="search_via_baidupedia">百度百科</string>
     <string name="thumb_trigger_area_tips">触发面积越小，越容易触发此功能。你可以通过调整触发面积来避免误触</string>
-    <string name="ocr_tips">/camscanner/扫描全能王提供 OCR 技术支持（功能不可用，需要申请key）</string>
+    <string name="ocr_tips">OCR由/camscanner/公司提供免费支持</string>
     <string name="ai_bang_tips">/tricorn/三角兽提供智能分词技术支持</string>
     <string name="dlg_title_notice">提示</string>
     <string name="install_camscanner_message">当前系统中未安装“扫描全能王”应用。点击“安装”前往应用商店下载并安装后即可启用图像文字识别功能</string>
@@ -45,4 +45,10 @@
     <string name="bang_notify_title">大爆炸已隐藏</string>
     <string name="bang_notify_text">点击显示大爆炸悬浮按钮</string>
     <string name="ai_boom_tips">智能分词由/tricorn/三角兽提供支持</string>
+    <string name="accessibility_boom_description">打开大爆炸功能可以非常便捷的编辑文本。 \n 我们不会收集你的隐私信息，只用来智能分词。 \n 如果你仍然担心，可以选择关闭“智能分词”功能, 之后将使用本地分词</string>
+    <string name="crop_recognize">识别文字</string>
+    <string name="crop_cancel">取消</string>
+    <string name="crop_title">框选需要识别的区域</string>
+    <string name="msg_ocr_error_network">因为网络原因未识别出文字</string>
+    <string name="ocr_not_enabled_message">未打开OCR功能，打开大爆炸应用允许OCR</string>
 </resources>

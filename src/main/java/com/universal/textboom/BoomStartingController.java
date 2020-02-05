@@ -24,6 +24,7 @@ import android.view.animation.DecelerateInterpolator;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.universal.textboom.util.Constant;
 import com.universal.textboom.util.LogUtils;
@@ -44,16 +45,13 @@ public class BoomStartingController {
     public void startBoom(int x, int y, String boomText) {
         mDownX = x;
         mDownY = y;
-        int touchIndex = (boomText.length() > 0) ? boomText.length() - 1 : 0;
 
-        LogUtils.d(TAG, "startboom!!: " + boomText + " mDownX " + mDownX + " mDownY " + mDownY);
 
-        if (boomText.length() != 0)
+        if (boomText != null && boomText.length() != 0)
             prepareTextBoom(boomText);
         else
             prepareImageBoom();
     }
-
 
 
     //for booming animation and all preparing staff
@@ -67,6 +65,7 @@ public class BoomStartingController {
     private View mTouchedView;
     boolean mCanImageBoom = false;
     private TextBoom mTextBoom;
+    private boolean mIsTextBooming = true;
 
     //entrance for text boom
     public void prepareTextBoom(String text) {
@@ -78,18 +77,16 @@ public class BoomStartingController {
     //entrance for image boom, change from tryImageBoom
     public void prepareImageBoom() {
         mTextBoom.boomCreate();
-        LogUtils.d(TAG, "prepareImageBoom 1");
-
         if (canImageBoom()) {
-            LogUtils.d(TAG, "prepareImageBoom " + mCanImageBoom);
-            mCanImageBoom = true;
             mTextBoom.prepareImageBoom();
-            mTextBoom.startImageBoom();
+        } else {
+            Toast.makeText(mContext, R.string.ocr_not_enabled_message, Toast.LENGTH_SHORT).show();
         }
     }
 
     private boolean canImageBoom() {
-        return mTextBoom.enabled && mTextBoom.ocrEnabled && !isInOcrBlacklist();
+        mCanImageBoom =  mTextBoom.enabled && mTextBoom.ocrEnabled && !isInOcrBlacklist();
+        return mCanImageBoom;
     }
 
     private boolean isInOcrBlacklist() {
@@ -128,10 +125,11 @@ public class BoomStartingController {
         }
 
         public void boomCreate() {
-            enabled = true;//SharedPreferencesManager.getInt(mContext, Constant.AI_BOOM, 1) == 1;
-            ocrEnabled = true;//SharedPreferencesManager.getInt(mContext, BIG_BANG_OCR_ENABLE, 1) == 1;
+            //todo need remove after debug
+            enabled = true;//bigbang enabled or not, it not will not come to this place
+            ocrEnabled = SharedPreferencesManager.getInt(mContext, BIG_BANG_OCR_ENABLE, 1) == 1;
 
-            if (enabled) {
+            if (enabled && mBoomIndictor == null) {
                 addIndicator();
             }
         }
@@ -174,7 +172,7 @@ public class BoomStartingController {
             mBoomIndictor.setBackgroundColor(Color.TRANSPARENT);
             mBoomIndictor.setVisibility(View.GONE);
 
-
+            LogUtils.d(TAG, "addIndicator " + mBoomIndictor);
             mBoomDecor.addView(mBoomIndictor);
         }
 
@@ -185,8 +183,19 @@ public class BoomStartingController {
         }
 
         public void prepareTextBoom() {
+            boomingAnimatorPrepare();
+            mIsTextBooming = true;
+            startLoopAnimation();
+        }
+
+        public void prepareImageBoom() {
+            boomingAnimatorPrepare();
+            mIsTextBooming = false;
+            startLoopAnimation();
+        }
+
+        private void boomingAnimatorPrepare() {
             if (mBoomIndictor == null) return;
-            startPreparingTextBoom();
             mBoomIndictor.bringToFront();
             mBoomIndictor.setVisibility(View.VISIBLE);
             mLoopView.bringToFront();
@@ -196,12 +205,6 @@ public class BoomStartingController {
             mLoopView.setScaleY(LOOP_END_SCALE);
             mLoopView.setVisibility(View.VISIBLE);
             mLoopView.setAlpha(0f);
-            startLoopAnimation();
-        }
-
-        public void prepareImageBoom() {
-            startPreparingTextBoom();
-            preparing = true;
         }
 
         private void startLoopAnimation() {
@@ -212,24 +215,12 @@ public class BoomStartingController {
                     public void onAnimationUpdate(ValueAnimator animation) {
                         if (animation.isRunning()) {
                             preparing = true;
-                            LogUtils.d(TAG, "startLoopAnimation onAnimationUpdate !!!!!! ");
 
-                            if (mBoomString == null) {
+                            if (mIsTextBooming && (mBoomString == null || TextUtils.isEmpty(mBoomString))) {
                                 LogUtils.w(TAG, "Cancel animation, mTouchedTextView has been reset to null");
                                 stopTextBoom();
                                 return;
                             }
-
-                            if (TextUtils.isEmpty(mBoomString)) {
-                                LogUtils.w(TAG, "Found text is empty for view=" + mTouchedView);
-                                stopTextBoom();
-                                return;
-                            } /*else if (!canGetTextFromWebView()) {
-                                LogUtils.d(TAG, "Found text is empty for webview=" + mTouchedView);
-                                stopTextBoom();
-                                prepareImageBoom();
-                                return;
-                            }*/
                         }
                     }
                 });
@@ -248,18 +239,22 @@ public class BoomStartingController {
                     @Override
                     public void onAnimationStart(Animator animation) {
                         mIsCanceled = false;
-                        LogUtils.d(TAG, "mLoopAnimator onAnimationStart ");
                     }
 
                     @Override
                     public void onAnimationEnd(Animator animation) {
-                        LogUtils.d(TAG, "mLoopAnimator onAnimationEnd ");
+
                         if (mIsCanceled) {
                             return;
                         }
                         mLoopView.setVisibility(View.INVISIBLE);
 
-                        startTextBoom((int) mDownX, (int) mDownY);
+                        if (mIsTextBooming) {
+                            startTextBoom((int) mDownX, (int) mDownY);
+                        } else {
+                            //startImageBoom();
+                            mBoomDecor.postDelayed(mImageBoomRunnable, 0);
+                        }
 
                         mCircleView.bringToFront();
                         mCircleView.setVisibility(View.VISIBLE);
@@ -278,7 +273,6 @@ public class BoomStartingController {
                     }
                 });
             }
-            LogUtils.d(TAG, "mLoopAnimator start ");
             mLoopAnimator.start();
         }
 
@@ -366,9 +360,6 @@ public class BoomStartingController {
             }
         }
 
-        private void startPreparingTextBoom() {
-        }
-
         private void startTextBoom(int x, int y) {
             preparing = false;
             try {
@@ -427,12 +418,13 @@ public class BoomStartingController {
             mTextBoom.preparing = false;
             try {
                 Intent intent = new Intent();
-                intent.setFlags(Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
+                //intent.setFlags(Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
                 intent.addFlags(Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS);
-                intent.setClassName(Constant.TEXTBOOM_PKG_NAME, Constant.TEXTBOOM_PKG_NAME + ".BoomOcrActivity");
+                intent.setClassName(Constant.TEXTBOOM_PKG_NAME, Constant.TEXTBOOM_PKG_NAME + ".PreOcrActivity");
                 Context context = mContext;
-                LogUtils.d(TAG, "mImageBoomRunnable.run");
                 if (!(context instanceof Activity)) {
+                    LogUtils.d(TAG, "mImageBoomRunnable.run  context not activity" + context);
+
                     if (context instanceof ContextWrapper) {
                         context = ((ContextWrapper) context).getBaseContext();
                         if (!(context instanceof Activity)) {
@@ -443,7 +435,7 @@ public class BoomStartingController {
                     }
                 }
                 if (mCanImageBoom) {
-                    intent.putExtra("caller_pkg", context.getPackageName());
+                    //intent.putExtra("caller_pkg", context.getPackageName());
 
                     int x = (int) mDownRawX;
                     int y = (int) mDownRawY;
@@ -466,8 +458,8 @@ public class BoomStartingController {
                     } else {
                         offset[0] = offset[1] = 0;
                     }*/
-                    intent.putExtra("boom_offsetx", offset[0]);
-                    intent.putExtra("boom_offsety", offset[1]);
+                    //intent.putExtra("boom_offsetx", offset[0]);
+                    //intent.putExtra("boom_offsety", offset[1]);
                     intent.putExtra("boom_startx", x);
                     intent.putExtra("boom_starty", y);
                     intent.putExtra("boom_fullscreen", fullScreen);

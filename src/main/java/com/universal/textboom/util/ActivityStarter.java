@@ -40,25 +40,25 @@ public class ActivityStarter {
         }
     }
 
-    private static void startDummyTextBoom(Context context, int x, int y, String text) {
+    public static void startImageBoom(Context context, int x, int y, String text) {
         try {
             Intent intent = new Intent();
-            intent.setClassName(Constant.TEXTBOOM_PKG_NAME, Constant.TEXTBOOM_PKG_NAME + ".BoomDummyActivity");
+            intent.setClassName(Constant.TEXTBOOM_PKG_NAME, Constant.TEXTBOOM_PKG_NAME + ".BoomOcrActivity");
             intent.putExtra(Intent.EXTRA_TEXT, text);
             intent.putExtra("boom_startx", x);
             intent.putExtra("boom_starty", y);
-            int index = (text.length() > 0) ? text.length() - 1 : 0;
+            int index = (text != null && text.length() > 0) ? text.length() - 1 : 0;
             intent.putExtra("boom_index", index);
             intent.putExtra("caller_pkg", context.getPackageName());
             //intent.setFlags(Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
 
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            intent.addFlags(Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS);
-            intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION);
+            //intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            //intent.addFlags(Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS);
+            //intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION);
 
             context.startActivity(intent);
         } catch (ActivityNotFoundException e) {
-            LogUtils.e(TAG, "Text boom Error e=" + e);
+            LogUtils.e(TAG, "image boom Error e=" + e);
         }
     }
 
